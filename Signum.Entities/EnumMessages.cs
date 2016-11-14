@@ -92,7 +92,8 @@ Lose changes?")]
 
 	Continue?")]
         ThereAreChangesContinue,
-        ThereAreErrors
+        ThereAreErrors,
+        Message
     }
 
     public enum EntityControlMessage
@@ -103,13 +104,18 @@ Lose changes?")]
         MoveDown,
         MoveUp,
         Navigate,
-        [Description("no")]
-        No,
         NullValueNotAllowed,
         Remove,
         View,
-        [Description("yes")]
-        Yes
+    }
+
+    [DescriptionOptions(DescriptionOptions.Members)]
+    public enum BooleanEnum
+    {
+        [Description("No")]
+        False = 0,
+        [Description("Yes")]        
+        True = 1,
     }
 
     public enum SearchMessage
@@ -161,7 +167,6 @@ Lose changes?")]
         [Description("View Selected")]
         ViewSelected,
         Operations,
-        Processes,
         NoResultsFound,
     }
 

@@ -150,6 +150,14 @@ namespace Signum.Test.LinqProvider
         }
 
         [TestMethod]
+        public void SelectConditionalToLiteNull()
+        {
+            var list = (from l in Database.Query<LabelEntity>()
+                        let owner = (l.Owner == null ? null : l.Owner).Entity
+                        select owner.ToLite(owner.Name)).ToList();
+        }
+
+        [TestMethod]
         public void SelectConditionalGetType()
         {
             var list = (from l in Database.Query<LabelEntity>()
@@ -547,23 +555,10 @@ namespace Signum.Test.LinqProvider
         }
 
         [TestMethod]
-        public void SelectTryToString()
-        {
-            var list = Database.Query<AlbumEntity>().Select(a => a.TryToString()).ToList();
-        }
-
-        [TestMethod]
         public void SelectToStringLite()
         {
             var list = Database.Query<AlbumEntity>().Select(a => a.ToLite().ToString()).ToList();
         }
-
-        [TestMethod]
-        public void SelectTryToStringLite()
-        {
-            var list = Database.Query<AlbumEntity>().Select(a => a.ToLite().TryToString()).ToList();
-        }
-
 
         [TestMethod]
         public void SelectConditionEnum()
@@ -624,14 +619,49 @@ namespace Signum.Test.LinqProvider
             var list = (from a in Database.Query<AlbumEntity>()
                         select ((ISecretContainer)a).Secret.InSql()).ToList();
         }
+
+        [TestMethod]
+        public void SelectEmbedded()
+        {
+            var list = Database.Query<AlbumEntity>().SelectMany(a => a.Songs).ToList();
+        }
+
+        [TestMethod]
+        public void SelectView()
+        {
+            var list = Database.View<Signum.Engine.SchemaInfoTables.SysDatabases>().ToList();
+        }
+
+        [TestMethod]
+        public void SelectRetrieve()
+        {
+            Assert2.Throws<InvalidOperationException>("not supported",
+                () => Database.Query<LabelEntity>().Select(l => l.Owner.Retrieve()).ToList());
+        }
+
+        [TestMethod]
+        public void SelectWithHint()
+        {
+            var list = Database.Query<AlbumEntity>().WithHint("INDEX(IX_LabelID)").Select(a => a.Label.Name).ToList();
+        }
+
+        [TestMethod]
+        public void SelectAverageBool()
+        {
+            Expression<Func<AlbumEntity, bool>> selector = a => a.Id > 10;
+            Expression<Func<AlbumEntity, double>> selectorDouble = Expression.Lambda<Func<AlbumEntity, double>>(Expression.Convert(selector.Body, typeof(double)), selector.Parameters.SingleEx());
+
+            var list = Database.Query<AlbumEntity>().Average(selectorDouble);
+        }
     }
 
     public static class AuthorExtensions
     {
         static Expression<Func<IAuthorEntity, int>> AlbumCountExpression = auth => Database.Query<AlbumEntity>().Count(a => a.Author == auth);
+        [ExpressionField]
         public static int AlbumCount(this IAuthorEntity author)
         {
-            return Database.Query<AlbumEntity>().Count(a => a.Author == author);
+            return AlbumCountExpression.Evaluate(author);
         }
     }
 }

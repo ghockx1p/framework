@@ -5,30 +5,44 @@ using System.Text;
 using Signum.Utilities;
 using Signum.Utilities.Reflection;
 using Signum.Entities.Reflection;
+using System.Linq.Expressions;
+using Signum.Utilities.ExpressionTrees;
+using System.Reflection;
 
 namespace Signum.Entities
 {
     [Serializable, EntityKind(EntityKind.SystemString, EntityData.Master)]
-    [PrimaryKey(typeof(int), Identity = false, IdentityBehaviour = false), TicksColumn(false)]
+    [TicksColumn(false)]
     public class EnumEntity<T> : Entity, IEquatable<EnumEntity<T>>
         where T : struct
     {
         public EnumEntity()
         {
-            Modified = ModifiedState.Clean;
         }
 
+        [MethodExpander(typeof(FromEnumMethodExpander))]
         public static EnumEntity<T> FromEnum(T t)
         {
             return new EnumEntity<T>()
             {
-                id = new PrimaryKey(Convert.ToInt32(t)),
+                id = new PrimaryKey(EnumExtensions.GetUnderlyingValue((Enum)(object)t)),
+            };
+        }
+
+        [MethodExpander(typeof(FromEnumMethodExpander))]
+        public static EnumEntity<T> FromEnumNotNew(T t)
+        {
+            return new EnumEntity<T>()
+            {
+                id = new PrimaryKey(EnumExtensions.GetUnderlyingValue((Enum)(object)t)),
+                IsNew = false,
+                Modified = ModifiedState.Clean
             };
         }
 
         public T ToEnum()
         {
-            return (T)Enum.ToObject(typeof(T), (int)Id);
+            return (T)Enum.ToObject(typeof(T), Id.Object);
         }
 
         public override string ToString()
@@ -45,7 +59,7 @@ namespace Signum.Entities
 
         public static implicit operator EnumEntity<T>(T enumerable)
         {
-            return FromEnum(enumerable);
+            return FromEnumNotNew(enumerable);
         }
 
         public static explicit operator T(EnumEntity<T> enumEntity)
@@ -56,12 +70,12 @@ namespace Signum.Entities
 
     public static class EnumEntity
     {
-        public static Entity FromEnum(Enum value)
+        public static Entity FromEnumUntyped(Enum value)
         {
             if (value == null) return null;
 
             Entity ident = (Entity)Activator.CreateInstance(Generate(value.GetType()));
-            ident.Id = new PrimaryKey(Convert.ToInt32(value));
+            ident.Id = new PrimaryKey(EnumExtensions.GetUnderlyingValue(value));
 
             return ident;
         }
@@ -92,7 +106,7 @@ namespace Signum.Entities
 
         public static IEnumerable<Entity> GetEntities(Type enumType)
         {
-            return GetValues(enumType).Select(a => FromEnum(a));
+            return GetValues(enumType).Select(a => FromEnumUntyped(a));
         }
 
         public static Type Generate(Type enumType)
@@ -107,5 +121,29 @@ namespace Signum.Entities
             return null;
         }
 
+    }
+
+    class FromEnumMethodExpander : IMethodExpander
+    {
+        internal static MethodInfo miQuery;
+        static readonly MethodInfo miSingleOrDefault = ReflectionTools.GetMethodInfo(() => Enumerable.SingleOrDefault<int>(null, i => true)).GetGenericMethodDefinition();
+
+        public Expression Expand(Expression instance, Expression[] arguments, System.Reflection.MethodInfo mi)
+        {
+            var type = mi.DeclaringType;
+            var query = Expression.Call(null, miQuery.MakeGenericMethod(mi.DeclaringType));
+
+            var underlyingType = Enum.GetUnderlyingType(mi.DeclaringType.GetGenericArguments().Single());
+
+            var param = Expression.Parameter(mi.DeclaringType);
+            var filter = Expression.Lambda(Expression.Equal(
+                Expression.Convert(Expression.Property(param, "Id"), underlyingType),
+                Expression.Convert(arguments.Single(), underlyingType)),
+                param);
+
+            var result = Expression.Call(miSingleOrDefault.MakeGenericMethod(type), query, filter);
+
+            return result;
+        }
     }
 }

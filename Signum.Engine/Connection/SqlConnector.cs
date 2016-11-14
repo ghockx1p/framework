@@ -84,9 +84,9 @@ namespace Signum.Engine
             return result;
         }
 
-        SqlCommand NewCommand(SqlPreCommandSimple preCommand, SqlConnection overridenConnection)
+        SqlCommand NewCommand(SqlPreCommandSimple preCommand, SqlConnection overridenConnection, CommandType commandType)
         {
-            SqlCommand cmd = new SqlCommand();
+            SqlCommand cmd = new SqlCommand { CommandType = commandType };
 
             int? timeout = Connector.ScopeTimeout ?? CommandTimeout;
             if (timeout.HasValue)
@@ -115,10 +115,10 @@ namespace Signum.Engine
             return cmd;
         }
 
-        protected internal override object ExecuteScalar(SqlPreCommandSimple preCommand)
+        protected internal override object ExecuteScalar(SqlPreCommandSimple preCommand, CommandType commandType)
         {
             using (SqlConnection con = EnsureConnection())
-            using (SqlCommand cmd = NewCommand(preCommand, con))
+            using (SqlCommand cmd = NewCommand(preCommand, con, commandType))
             using (HeavyProfiler.Log("SQL", () => preCommand.PlainSql()))
             {
                 try
@@ -141,10 +141,10 @@ namespace Signum.Engine
             }
         }
 
-        protected internal override int ExecuteNonQuery(SqlPreCommandSimple preCommand)
+        protected internal override int ExecuteNonQuery(SqlPreCommandSimple preCommand, CommandType commandType)
         {
             using (SqlConnection con = EnsureConnection())
-            using (SqlCommand cmd = NewCommand(preCommand, con))
+            using (SqlCommand cmd = NewCommand(preCommand, con, commandType))
             using (HeavyProfiler.Log("SQL", () => preCommand.PlainSql()))
             {
                 try
@@ -163,14 +163,14 @@ namespace Signum.Engine
             }
         }
 
-        public void ExecuteDataReaderDependency(SqlPreCommandSimple preCommand, OnChangeEventHandler change, Action reconect, Action<FieldReader> forEach)
+        public void ExecuteDataReaderDependency(SqlPreCommandSimple preCommand, OnChangeEventHandler change, Action reconect, Action<FieldReader> forEach, CommandType commandType)
         {
             bool reconected = false; 
             retry:
             try
             {
                 using (SqlConnection con = EnsureConnection())
-                using (SqlCommand cmd = NewCommand(preCommand, con))
+                using (SqlCommand cmd = NewCommand(preCommand, con, commandType))
                 using (HeavyProfiler.Log("SQL-Dependency"))
                 using (HeavyProfiler.Log("SQL", () => preCommand.PlainSql()))
                 {
@@ -228,11 +228,11 @@ namespace Signum.Engine
             }
         }
 
-        protected internal override DbDataReader UnsafeExecuteDataReader(SqlPreCommandSimple preCommand)
+        protected internal override DbDataReader UnsafeExecuteDataReader(SqlPreCommandSimple preCommand, CommandType commandType)
         {
             try
             {
-                SqlCommand cmd = NewCommand(preCommand, null);
+                SqlCommand cmd = NewCommand(preCommand, null, commandType);
 
                 return cmd.ExecuteReader();
             }
@@ -246,10 +246,10 @@ namespace Signum.Engine
             }
         }
 
-        protected internal override DataTable ExecuteDataTable(SqlPreCommandSimple preCommand)
+        protected internal override DataTable ExecuteDataTable(SqlPreCommandSimple preCommand, CommandType commandType)
         {
             using (SqlConnection con = EnsureConnection())
-            using (SqlCommand cmd = NewCommand(preCommand, con))
+            using (SqlCommand cmd = NewCommand(preCommand, con, commandType))
             using (HeavyProfiler.Log("SQL", () => preCommand.PlainSql()))
             {
                 try
@@ -271,10 +271,10 @@ namespace Signum.Engine
             }
         }
 
-        protected internal override DataSet ExecuteDataSet(SqlPreCommandSimple preCommand)
+        protected internal override DataSet ExecuteDataSet(SqlPreCommandSimple preCommand, CommandType commandType)
         {
             using (SqlConnection con = EnsureConnection())
-            using (SqlCommand cmd = NewCommand(preCommand, con))
+            using (SqlCommand cmd = NewCommand(preCommand, con, commandType))
             using (HeavyProfiler.Log("SQL", () => preCommand.PlainSql()))
             {
                 try
@@ -333,7 +333,7 @@ namespace Signum.Engine
 
         }
 
-        protected internal override void BulkCopy(DataTable dt, ObjectName destinationTable, SqlBulkCopyOptions options)
+        protected internal override void BulkCopy(DataTable dt, ObjectName destinationTable, SqlBulkCopyOptions options, int? timeout)
         {
             using (SqlConnection con = EnsureConnection())
             using (SqlBulkCopy bulkCopy = new SqlBulkCopy(
@@ -342,6 +342,9 @@ namespace Signum.Engine
                 options.HasFlag(SqlBulkCopyOptions.UseInternalTransaction) ? null : (SqlTransaction)Transaction.CurrentTransaccion))
             using (HeavyProfiler.Log("SQL", () => destinationTable.ToString() + " Rows:" + dt.Rows.Count))
             {
+                if (timeout.HasValue)
+                    bulkCopy.BulkCopyTimeout = timeout.Value;
+
                 foreach (DataColumn c in dt.Columns)
                     bulkCopy.ColumnMappings.Add(new SqlBulkCopyColumnMapping(c.ColumnName, c.ColumnName));
 
@@ -588,13 +591,38 @@ open cur
 close cur 
 deallocate cur";
 
+        public static readonly string RemoveAllSchemasScript =
+@"declare @schema nvarchar(128)
+DECLARE @sql nvarchar(255) 
+
+declare cur cursor fast_forward for 
+select schema_name
+from information_schema.schemata 
+where schema_name not in ({0})
+open cur 
+    fetch next from cur into @schema
+    while @@fetch_status <> -1 
+    begin 
+        select @sql = 'DROP SCHEMA [' + @schema + '];'
+        exec sp_executesql @sql 
+        fetch next from cur into @schema
+    end 
+close cur 
+deallocate cur";
+
+
+
         public static SqlPreCommand RemoveAllScript(DatabaseName databaseName)
         {
+            var schemas = SqlBuilder.SystemSchemas.ToString(a => "'" + a + "'", ", ");
+
             return SqlPreCommand.Combine(Spacing.Double,
                 new SqlPreCommandSimple(Use(databaseName, RemoveAllProceduresScript)),
                 new SqlPreCommandSimple(Use(databaseName, RemoveAllViewsScript)),
                 new SqlPreCommandSimple(Use(databaseName, RemoveAllConstraintsScript)),
-                new SqlPreCommandSimple(Use(databaseName, RemoveAllTablesScript)));
+                new SqlPreCommandSimple(Use(databaseName, RemoveAllTablesScript)),
+                new SqlPreCommandSimple(Use(databaseName, RemoveAllSchemasScript.FormatWith(schemas)))
+                );
         }
 
         static string Use(DatabaseName databaseName, string script)

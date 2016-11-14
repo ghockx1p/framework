@@ -348,7 +348,7 @@ once("removeKeyPress", () =>
 
 once("ajaxError", () =>
     $(function () {
-        $("body").bind("sf-ajax-error", function (event, XMLHttpRequest, textStatus, thrownError) {
+        $("body").bind("sf-ajax-error", <any>function (event, XMLHttpRequest, textStatus, thrownError) {
 
             var error = XMLHttpRequest.responseText;
             if (!error) {
@@ -371,6 +371,21 @@ once("ajaxError", () =>
 
 once("dateTimePickerSync", () => {
     $(function () {
+        $(document).on("paste", 'div.date-time div.date input', function (e: JQueryEventObject) {
+            setTimeout(function () {
+                var dateTime: string = $(e.currentTarget).val();
+
+                var hour = dateTime.tryAfterLast(" ");
+                var date = dateTime.tryBeforeLast(" ");
+
+                if (hour && date) {
+                    var timePicker = $(e.currentTarget).closest("div.date-time").find("div.time");
+                    timePicker.timepicker("setTime", hour);
+                    $(e.currentTarget).val(date.tryAfterLast(" ") || date)
+                }
+            }, 100);             
+        });
+
         $(document).on("changeDate clearDate", 'div.date-time div.date', function (e : any) {
             var time = $(this).closest("div.date-time").find("div.time");
 

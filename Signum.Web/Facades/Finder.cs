@@ -9,6 +9,7 @@ using Signum.Entities;
 using Signum.Entities.DynamicQuery;
 using Signum.Entities.Reflection;
 using Signum.Utilities;
+using Signum.Engine;
 
 namespace Signum.Web
 {
@@ -22,8 +23,14 @@ namespace Signum.Web
         }
 
         public const string FindRouteName = "sfFind";
+
+        public static Func<UrlHelper, object, string> FindRouteFunc;
         public static string FindRoute(object queryName)
         {
+
+            if (FindRouteFunc != null)
+                return FindRouteFunc(new UrlHelper(HttpContext.Current.Request.RequestContext), queryName);
+
             return new UrlHelper(HttpContext.Current.Request.RequestContext).RouteUrl(FindRouteName, new
             {
                 webQueryName = ResolveWebQueryName(queryName)
@@ -82,7 +89,7 @@ namespace Signum.Web
 
         public static List<Lite<T>> ParseLiteKeys<T>(string liteKeys) where T : class, IEntity
         {
-            return liteKeys.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(Lite.Parse<T>).ToList();
+            return liteKeys.SplitNoEmpty(',').Select(e=>e.Replace("#coma#", ",")).Select(Lite.Parse<T>).ToList();
         }
 
 
@@ -100,6 +107,11 @@ namespace Signum.Web
         {
             return Manager.OnIsFindable(queryName);
         }
+
+        public static ActionResult SimpleFilterBuilderResult(ControllerBase controller, List<FilterOption> filterOptions)
+        {
+            return Manager.SimpleFilterBuilderResult(controller, filterOptions);
+        }
     }
 
     public class FinderManager
@@ -113,6 +125,7 @@ namespace Signum.Web
         public string SearchControlView = ViewPrefix.FormatWith("SearchControl");
         public string SearchResultsView = ViewPrefix.FormatWith("SearchResults");
         public string FilterBuilderView = ViewPrefix.FormatWith("FilterBuilder");
+        public string FilterRowsView = ViewPrefix.FormatWith("FilterRows");
         public string PaginationSelectorView = ViewPrefix.FormatWith("PaginationSelector");
 
         public Dictionary<object, QuerySettings> QuerySettings { get; set; }
@@ -224,13 +237,11 @@ namespace Signum.Web
 
             if (findOptions.Navigate)
             {
-                findOptions.Navigate = implementations.Value.IsByAll ? true : 
-                    implementations.Value.Types.Any(t => Navigator.IsNavigable(t, null, true));
+                findOptions.Navigate = implementations.Value.IsByAll ? true : implementations.Value.Types.Any(t => Navigator.IsNavigable(t, null, true));
             }
             if (findOptions.Create)
             {
-                findOptions.Create = findOptions.Navigate &&
-                    (implementations.Value.IsByAll ? true : implementations.Value.Types.Any(t => Navigator.IsCreable(t, true)));
+                findOptions.Create = (implementations.Value.IsByAll ? true : implementations.Value.Types.Any(t => Navigator.IsCreable(t, true)));
             }
         }
         
@@ -285,15 +296,27 @@ namespace Signum.Web
             if (!Finder.IsFindable(request.QueryName))
                 throw new UnauthorizedAccessException(NormalControlMessage.ViewForType0IsNotAllowed.NiceToString().FormatWith(request.QueryName));
 
+            QuerySettings settings = QuerySettings[request.QueryName];
+            QueryDescription qd = DynamicQueryManager.Current.QueryDescription(request.QueryName);
+
+            if(settings.HiddenColumns != null)
+            {
+                if (settings.HiddenColumns.Any(a => a.Token == null))
+                    using (ExecutionMode.Global())
+                        ColumnOption.SetColumnTokens(settings.HiddenColumns, qd, canAggregate: false);
+
+                request.Columns.AddRange(settings.HiddenColumns.Select(c => c.ToColumn(qd, isVisible: false)));
+            }
+
             ResultTable queryResult = DynamicQueryManager.Current.ExecuteQuery(request);
-            
+
             controller.ViewData.Model = context;
 
             controller.ViewData[ViewDataKeys.AllowSelection] = allowSelection;
             controller.ViewData[ViewDataKeys.Navigate] = navigate;
             controller.ViewData[ViewDataKeys.ShowFooter] = showFooter;
 
-            QueryDescription qd = DynamicQueryManager.Current.QueryDescription(request.QueryName);
+          
             controller.ViewData[ViewDataKeys.QueryDescription] = qd;
 
             Type entitiesType = Lite.Extract(qd.Columns.SingleEx(a => a.IsEntity).Type);
@@ -302,9 +325,11 @@ namespace Signum.Web
                 controller.ViewData[ViewDataKeys.MultipliedMessage] = message;
 
             controller.ViewData[ViewDataKeys.Results] = queryResult;
+            controller.ViewData[ViewDataKeys.QueryRequest] = request;
 
-            QuerySettings settings = QuerySettings[request.QueryName];
             controller.ViewData[ViewDataKeys.Formatters] = queryResult.Columns.Select((c, i)=>new {c,i}).ToDictionary(c=>c.i, c =>settings.GetFormatter(c.c.Column));
+            controller.ViewData[ViewDataKeys.EntityFormatter] = settings.EntityFormatter;
+            controller.ViewData[ViewDataKeys.RowAttributes] = settings.RowAttributes;
 
             return new PartialViewResult
             {
@@ -355,6 +380,34 @@ namespace Signum.Web
                 }
 
             return true;
+        }
+
+        protected internal virtual ActionResult SimpleFilterBuilderResult(ControllerBase controller, List<FilterOption> filterOptions)
+        {
+            object queryName = Finder.ResolveQueryName(controller.ParseValue<string>("webQueryName"));
+
+            var qd = DynamicQueryManager.Current.QueryDescription(queryName);
+
+            FilterOption.SetFilterTokens(filterOptions, qd, canAggregate: false);
+
+            if (controller.ParseValue<bool>("returnHtml"))
+            {
+                controller.ViewData.Model = new Context(null, controller.Prefix());
+                controller.ViewData[ViewDataKeys.FilterOptions] = filterOptions;
+
+                return new PartialViewResult
+                {
+                    ViewName = FilterRowsView,
+                    ViewData = controller.ViewData,
+                };
+            }
+            else
+            {
+                return new ContentResult
+                {
+                    Content = filterOptions.ToString(";")
+                };
+            }
         }
     }
 }

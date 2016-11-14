@@ -22,7 +22,7 @@ namespace Signum.Web
 
         public static MvcHtmlString HiddenRuntimeInfo(this HtmlHelper helper, TypeContext tc)
         {
-            return helper.Hidden(tc.Compose(EntityBaseKeys.RuntimeInfo), tc.RuntimeInfo().TryToString());
+            return helper.Hidden(tc.Compose(EntityBaseKeys.RuntimeInfo), tc.RuntimeInfo()?.ToString());
         }
 
         public static MvcHtmlString HiddenRuntimeInfo<T, S>(this HtmlHelper helper, TypeContext<T> parent, Expression<Func<T, S>> property)
@@ -68,15 +68,12 @@ namespace Signum.Web
 
         public override string ToString()
         {
-            if (IdOrNull != null && IsNew)
-                throw new ArgumentException("Invalid RuntimeInfo parameters: IdOrNull={0} and IsNew=true".FormatWith(IdOrNull));
-
             if (EntityType != null && EntityType.IsLite())
                 throw new ArgumentException("RuntimeInfo's RuntimeType cannot be of type Lite. Use ExtractLite or construct a RuntimeInfo<T> instead");
 
             return "{0};{1};{2};{3}".FormatWith(
                 Navigator.ResolveWebTypeName(EntityType),
-                IdOrNull.TryToString(),
+                IdOrNull?.ToString(),
                 IsNew ? "n" : "o",
                 Ticks
                 );

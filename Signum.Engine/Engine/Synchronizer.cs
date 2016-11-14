@@ -21,10 +21,10 @@ namespace Signum.Engine
             where O : class
             where N : class
         {
-            HashSet<K> set = new HashSet<K>();
-            set.UnionWith(oldDictionary.Keys);
-            set.UnionWith(newDictionary.Keys);
-            foreach (var key in set)
+            HashSet<K> keys = new HashSet<K>();
+            keys.UnionWith(oldDictionary.Keys);
+            keys.UnionWith(newDictionary.Keys);
+            foreach (var key in keys)
             {
                 var oldVal = oldDictionary.TryGetC(key);
                 var newVal = newDictionary.TryGetC(key);
@@ -136,7 +136,7 @@ namespace Signum.Engine
 
         public static IDisposable RenameTable(Table table, Replacements replacements)
         {
-            string fullName = replacements.TryGetC(Replacements.KeyTablesInverse).TryGetC(table.Name.ToString());
+            string fullName = replacements.TryGetC(Replacements.KeyTablesInverse)?.TryGetC(table.Name.ToString());
             if (fullName == null)
                 return null;
 
@@ -178,7 +178,7 @@ namespace Signum.Engine
         {
             Dictionary<string, string> repDic = this.TryGetC(replacementsKey);
 
-            return repDic.TryGetC(textToReplace) ?? textToReplace;
+            return repDic?.TryGetC(textToReplace) ?? textToReplace;
         }
 
         public virtual Dictionary<string, O> ApplyReplacementsToOld<O>(Dictionary<string, O> oldDictionary, string replacementsKey)
@@ -255,7 +255,7 @@ namespace Signum.Engine
             if (newValues.Contains(oldValue))
                 return oldValue;
 
-            var rep = this.TryGetC(replacementsKey).TryGetC(oldValue);
+            var rep = this.TryGetC(replacementsKey)?.TryGetC(oldValue);
 
             if (rep != null && newValues.Contains(rep))
                 return rep;
@@ -289,10 +289,7 @@ namespace Signum.Engine
             }
 
             if (!interactive)
-                return new Selection(oldValue, newValues.First());
-
-            if (Console.Out == null)
-                throw new InvalidOperationException("Impossible to synchronize without interactive Console");
+                throw new InvalidOperationException("Impossible to synchronize {0} without interactive Console".FormatWith(replacementsKey));
 
             int startingIndex = 0;
 
@@ -313,9 +310,6 @@ namespace Signum.Engine
             while (true)
             {
                 string answer = Console.ReadLine();
-
-                if (answer == null)
-                    throw new InvalidOperationException("Impossible to synchronize interactively without Console");
                 
                  answer= answer.ToLower();
 

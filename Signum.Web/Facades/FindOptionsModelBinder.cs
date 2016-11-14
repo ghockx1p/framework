@@ -1,5 +1,4 @@
-﻿#region usings
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -14,7 +13,6 @@ using Signum.Entities.Reflection;
 using Signum.Utilities.Reflection;
 using System.Text.RegularExpressions;
 using Signum.Engine;
-#endregion
 
 namespace Signum.Web
 {
@@ -29,7 +27,7 @@ namespace Signum.Web
             if (parameters.AllKeys.Any(name => !name.HasText()))
                 throw new Exception("Incorrect URL: " + controllerContext.HttpContext.Request.Url.ToString());
 
-            object rawValue = bindingContext.ValueProvider.GetValue("webQueryName").Try(vp => vp.RawValue);
+            object rawValue = bindingContext.ValueProvider.GetValue("webQueryName")?.RawValue;
             if (rawValue == null)
                 return null;
 
@@ -101,7 +99,7 @@ namespace Signum.Web
                         break;
                 }
             }
-
+            
             if (parameters.AllKeys.Contains("searchOnLoad"))
                 fo.SearchOnLoad = bool.Parse(parameters["searchOnLoad"]);
 
@@ -221,19 +219,23 @@ namespace Signum.Web
         {
             if (type.UnNullify() == typeof(bool))
             {
+                if (!value.HasText())
+                    return null;
+
                 string[] vals = ((string)value).Split(',');
                 return (vals[0] == "true" || vals[0] == "True");
             }
             if (type.UnNullify() == typeof(DateTime))
             {
-                if (value.HasText())
-                    return DateTime.Parse(value).FromUserInterface();
-                return null;
+                if (!value.HasText())
+                    return null;
+
+                return DateTime.Parse(value).FromUserInterface();
             }
             if (type.UnNullify().IsLite())
                 return Database.FillToString(Lite.Parse(value));
 
-            return ReflectionTools.Parse(value, type); 
+            return ReflectionTools.Parse(value, type);
         }
     }
 }

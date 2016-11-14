@@ -1,4 +1,5 @@
-﻿
+﻿@model Context
+
 @using (Html.BeginForm())
 {
     <div id="divSearchPage">
@@ -8,7 +9,6 @@
                 <span class="glyphicon glyphicon-new-window"></span>
             </a>
         </h2>
-        @Html.ValidationSummaryAjax()
         @{ ViewData[ViewDataKeys.AvoidFullScreenButton] = true; }
         @Html.Partial(Finder.Manager.SearchControlView)
         @Html.AntiForgeryToken()

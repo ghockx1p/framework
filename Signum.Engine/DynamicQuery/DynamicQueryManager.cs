@@ -76,7 +76,7 @@ namespace Signum.Engine.DynamicQuery
 
 
 
-        T Execute<T>(ExecuteType executeType, object queryName, Func<DynamicQueryBucket, T> executor)
+        T Execute<T>(ExecuteType executeType, object queryName, BaseQueryRequest request, Func<DynamicQueryBucket, T> executor)
         {
             using (ExecutionMode.UserInterface())
             using (HeavyProfiler.Log(executeType.ToString(), () => QueryUtils.GetQueryUniqueKey(queryName)))
@@ -85,7 +85,7 @@ namespace Signum.Engine.DynamicQuery
                 {
                     var qb = GetQuery(queryName);
 
-                    using (Disposable.Combine(QueryExecuted, f => f(executeType, queryName)))
+                    using (Disposable.Combine(QueryExecuted, f => f(executeType, queryName, request)))
                     {
                         return executor(qb);
                     }
@@ -98,7 +98,7 @@ namespace Signum.Engine.DynamicQuery
             }
         }
 
-        public event Func<ExecuteType, object, IDisposable> QueryExecuted;
+        public event Func<ExecuteType, object, BaseQueryRequest ,  IDisposable> QueryExecuted;
 
         public enum ExecuteType
         {
@@ -111,27 +111,27 @@ namespace Signum.Engine.DynamicQuery
 
         public ResultTable ExecuteQuery(QueryRequest request)
         {
-            return Execute(ExecuteType.ExecuteQuery, request.QueryName, dqb => dqb.Core.Value.ExecuteQuery(request));
+            return Execute(ExecuteType.ExecuteQuery, request.QueryName,request, dqb => dqb.Core.Value.ExecuteQuery(request));
         }
 
         public int ExecuteQueryCount(QueryCountRequest request)
         {
-            return Execute(ExecuteType.ExecuteQueryCount, request.QueryName, dqb => dqb.Core.Value.ExecuteQueryCount(request));
+            return Execute(ExecuteType.ExecuteQueryCount, request.QueryName, request, dqb => dqb.Core.Value.ExecuteQueryCount(request));
         }
 
         public ResultTable ExecuteGroupQuery(QueryGroupRequest request)
         {
-            return Execute(ExecuteType.ExecuteGroupQuery, request.QueryName, dqb => dqb.Core.Value.ExecuteQueryGroup(request));
+            return Execute(ExecuteType.ExecuteGroupQuery, request.QueryName,request, dqb => dqb.Core.Value.ExecuteQueryGroup(request));
         }
 
         public Lite<Entity> ExecuteUniqueEntity(UniqueEntityRequest request)
         {
-            return Execute(ExecuteType.ExecuteUniqueEntity, request.QueryName, dqb => dqb.Core.Value.ExecuteUniqueEntity(request));
+            return Execute(ExecuteType.ExecuteUniqueEntity, request.QueryName,request, dqb => dqb.Core.Value.ExecuteUniqueEntity(request));
         }
 
         public QueryDescription QueryDescription(object queryName)
         {
-            return Execute(ExecuteType.QueryDescription, queryName, dqb => dqb.GetDescription());
+            return Execute(ExecuteType.QueryDescription, queryName, null, dqb => dqb.GetDescription());
         }
      
         public event Func<object, bool> AllowQuery;
@@ -319,6 +319,7 @@ namespace Signum.Engine.DynamicQuery
         public PropertyRoute ForcePropertyRoute;
         public string ForceFormat;
         public string ForceUnit;
+        public Func<string> ForceIsAllowed;
 
 
         internal readonly LambdaExpression Lambda;
@@ -360,6 +361,8 @@ namespace Signum.Engine.DynamicQuery
                     result.Unit = ColumnDescriptionFactory.GetUnit(cm.PropertyRoutes);
                 }
 
+                result.IsAllowed = () => (me == null || me.Meta == null) ? null : me.Meta.IsAllowed();
+
                 if (ForcePropertyRoute != null)
                     result.PropertyRoute = ForcePropertyRoute;
 
@@ -371,8 +374,9 @@ namespace Signum.Engine.DynamicQuery
 
                 if (ForceUnit != null)
                     result.Unit = ForceUnit;
-              
-                result.IsAllowed = () => (me == null || me.Meta == null) ? null : me.Meta.IsAllowed();
+
+                if (ForceIsAllowed != null)
+                    result.IsAllowed = ForceIsAllowed;
 
                 return result;
             });

@@ -27,8 +27,11 @@ namespace Signum.Web
         public const string QueryDescription = "sfQueryDescription";
         public const string QueryName = "sfQueryName";
         public const string Results = "sfResults";
+        public const string QueryRequest = "sfQueryRequest";
         public const string MultipliedMessage = "sfMultipliedMessage";
         public const string Formatters = "sfFormatters";
+        public const string EntityFormatter = "sfEntityFormatter";
+        public const string RowAttributes = "sfRowAttributes";
         public const string TabId = "sfTabId";
         public const string PartialViewName = "sfPartialViewName";
         public const string EntityState = "sfEntityState";
@@ -36,7 +39,7 @@ namespace Signum.Web
         public const string InPopup = "sfIsPopup";
         public const string AvoidFullScreenButton = "sfAvoidFullScreenButton";
         public const string ShowOperations = "sfShowOperations";
-        public const string SaveProtected = "sfSaveProtected";
+        public const string RequiresSaveOperation = "sfRequiresSaveOperation";
         public const string FiltersVisible = "sfFiltersVisible";
         public const string ShowAddColumn = "sfShowAddColumn";
         public static string ShowFooter = "sfShowFooter";

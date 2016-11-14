@@ -1,5 +1,4 @@
-﻿#region usings
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -15,7 +14,6 @@ using Signum.Utilities.DataStructures;
 using System.Web.Mvc;
 using Signum.Utilities.ExpressionTrees;
 using System.Linq.Expressions;
-#endregion
 
 namespace Signum.Web
 {
@@ -155,10 +153,10 @@ namespace Signum.Web
 
         public JsonNetResult ToJsonModelState()
         {
-            return ToJsonModelState(null, null);
+            return ToJsonModelState(null);
         }
 
-        public JsonNetResult ToJsonModelState(string newToString, string newToStringLink)
+        public JsonNetResult ToJsonModelState(string newToString)
         {
             Dictionary<string, object> result = new Dictionary<string, object>
             {
@@ -168,8 +166,7 @@ namespace Signum.Web
 
             if (newToString != null)
                 result.Add(EntityBaseKeys.ToStr, newToString);
-            if (newToStringLink != null)
-                result.Add(EntityBaseKeys.Link, newToStringLink);
+            
 
             return new JsonNetResult(result);
         }
@@ -226,7 +223,7 @@ namespace Signum.Web
                     {
                         dic.Remove(pv.PropertyInfo.Name);
 
-                        child.Error.Add(error);
+                        child.Error.AddRange(error.SplitNoEmpty("\r\n" ));
                     }
                 }
 
@@ -252,7 +249,7 @@ namespace Signum.Web
         {
         }
 
-        internal bool SupressChange;
+        public bool SupressChange;
 
         public T None()
         {

@@ -1,4 +1,3 @@
-#region usings
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,7 +10,6 @@ using Signum.Entities;
 using Signum.Entities.Reflection;
 using Signum.Utilities;
 using System.Configuration;
-#endregion
 
 namespace Signum.Web
 {
@@ -101,7 +99,7 @@ namespace Signum.Web
                     .Id(itemTC.Compose(EntityBaseKeys.ToStr))
                     .Class("sf-entity-list-option")
                     .Let(a => itemTC.Index > 0 ? a : a.Attr("selected", "selected"))
-                    .SetInnerText(itemTC.Value.TryToString())
+                    .SetInnerText(itemTC.Value?.ToString())
                     .ToHtml(TagRenderMode.Normal));
 
             return sb.ToHtml();

@@ -1,5 +1,4 @@
-﻿#region usings
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -14,7 +13,7 @@ using Newtonsoft.Json.Linq;
 using Newtonsoft.Json;
 using Signum.Utilities.ExpressionTrees;
 using Signum.Utilities.Reflection;
-#endregion
+using Signum.Engine.Operations;
 
 namespace Signum.Web.Operations
 {
@@ -170,6 +169,8 @@ namespace Signum.Web.Operations
         public abstract bool HasIsVisible { get; }
         public abstract bool OnIsVisible(IContextualOperationContext ctx);
 
+        public bool? HideOnCanExecute { get; set; }
+
         protected ContextualOperationSettingsBase(OperationSymbol symbol)
             : base(symbol)
         {
@@ -181,6 +182,8 @@ namespace Signum.Web.Operations
         {
             return giCreate.GetInvoker(type)(symbol);
         }
+
+        public BootstrapStyle? Style { get; set; }
     }
 
     public class ContextualOperationSettings<T> : ContextualOperationSettingsBase where T : class, IEntity
@@ -236,22 +239,27 @@ namespace Signum.Web.Operations
         OperationInfo OperationInfo { get; }
         string CanExecute { get; set; }
         ContextualOperationSettingsBase OperationSettings { get; }
+        EntityOperationSettingsBase EntityOperationSettings { get; }
         SelectedItemsMenuContext Context { get; }
 
         Type Type { get; }
 
         JsOperationOptions Options();
+
+        bool HideOnCanExecute { get; }
+
+        IEnumerable<Lite<IEntity>> UntypedEntites { get; }
     }
 
     public class ContextualOperationContext<T> : IContextualOperationContext 
         where T : class, IEntity
     {
-
         public List<Lite<T>> Entities { get; private set; }
         public Type SingleType { get { return Entities.Select(a => a.EntityType).Distinct().Only(); } }
 
         public OperationInfo OperationInfo { get; private set; }
         public ContextualOperationSettings<T> OperationSettings { get; set; }
+        public EntityOperationSettings<T> EntityOperationSettings { get; set; }
 
         public SelectedItemsMenuContext Context { get; private set; }
         public string Prefix { get { return Context.Prefix; } }    
@@ -260,17 +268,18 @@ namespace Signum.Web.Operations
 
         public string CanExecute { get; set; }
 
-        public ContextualOperationContext(SelectedItemsMenuContext ctx, OperationInfo info, ContextualOperationSettings<T> settings)
+        public ContextualOperationContext(SelectedItemsMenuContext ctx, OperationInfo info, ContextualOperationSettings<T> settings, EntityOperationSettings<T> entityOperationSettings)
         {
             this.Context = ctx;
             this.OperationInfo = info;
             this.OperationSettings = settings;
             this.Entities = Context.Lites.Cast<Lite<T>>().ToList();
+            this.EntityOperationSettings = entityOperationSettings;
         }
 
         public JsOperationOptions Options()
         {
-            var result = new JsOperationOptions(OperationInfo.OperationSymbol, this.Prefix) { isLite = OperationInfo.Lite };
+            var result = new JsOperationOptions(OperationInfo.OperationSymbol, this.Prefix) { isLite = OperationInfo.Lite , isContextual=true};
 
             result.confirmMessage = OperationSettings != null && OperationSettings.ConfirmMessage != null ? OperationSettings.ConfirmMessage(this) :
                 OperationInfo.OperationType == OperationType.Delete ? OperationMessage.PleaseConfirmYouDLikeToDeleteTheSelectedEntitiesFromTheSystem.NiceToString() : null;
@@ -283,9 +292,38 @@ namespace Signum.Web.Operations
             get { return OperationSettings; }
         }
 
+        EntityOperationSettingsBase IContextualOperationContext.EntityOperationSettings
+        {
+            get { return EntityOperationSettings; }
+        }
+
         public Type Type
         {
             get { return typeof(T); }
+        }
+
+        public bool HideOnCanExecute
+        {
+            get
+            {
+                if (this.OperationSettings != null && this.OperationSettings.HideOnCanExecute.HasValue)
+                    return this.OperationSettings.HideOnCanExecute.Value;
+
+                if (this.EntityOperationSettings != null)
+                    return this.EntityOperationSettings.HideOnCanExecute;
+
+                return false;
+            }
+        }
+
+        public IEnumerable<Lite<IEntity>> UntypedEntites
+        {
+            get { return Entities; }
+        }
+
+        public string ComposePrefix(string prefixPart)
+        {
+            return TypeContextUtilities.Compose(this.Prefix, prefixPart);
         }
     }
 
@@ -308,6 +346,7 @@ namespace Signum.Web.Operations
 
     public abstract class EntityOperationSettingsBase : OperationSettings
     {
+        public BootstrapStyle? Style { get; set; } 
         public double Order { get; set; }
 
         public abstract ContextualOperationSettingsBase ContextualUntyped { get; }
@@ -321,9 +360,12 @@ namespace Signum.Web.Operations
         public abstract bool HasIsVisible { get; }
         public abstract bool OnIsVisible(IEntityOperationContext ctx);
 
+        public bool HideOnCanExecute { get; set; }
+
         public EntityOperationSettingsBase(OperationSymbol symbol)
             : base(symbol)
         {
+            this.HideOnCanExecute = false;
         }
 
         static GenericInvoker<Func<OperationSymbol, EntityOperationSettingsBase>> giCreate =
@@ -333,7 +375,7 @@ namespace Signum.Web.Operations
             return giCreate.GetInvoker(type)(symbol);
         }
 
-        public static Func<OperationInfo, BootstrapStyle> Style { get; set; }
+        public static Func<OperationInfo, BootstrapStyle> AutoStyleFunction { get; set; }
     }
 
     public class EntityOperationSettings<T> : EntityOperationSettingsBase where T : class, IEntity
@@ -357,7 +399,7 @@ namespace Signum.Web.Operations
 
         static EntityOperationSettings()
         {
-            Style = oi => oi.OperationType == OperationType.Delete ? BootstrapStyle.Danger :
+            AutoStyleFunction = oi => oi.OperationType == OperationType.Delete ? BootstrapStyle.Danger :
                 oi.OperationType == OperationType.Execute && oi.OperationSymbol.Key.EndsWith(".Save") ? BootstrapStyle.Primary :
                 BootstrapStyle.Default;
         }
@@ -410,7 +452,6 @@ namespace Signum.Web.Operations
         IEntity Entity { get; }
         EntityOperationSettingsBase OperationSettings { get; }
         string CanExecute { get; set; }
-
         JsOperationOptions Options();
     }
 
@@ -453,11 +494,10 @@ namespace Signum.Web.Operations
         }
 
 
-        public string Compose(string prefixPart)
+        public string ComposePrefix(string prefixPart)
         {
             return TypeContextUtilities.Compose(this.Prefix, prefixPart); 
         }
-
 
         IEntity IEntityOperationContext.Entity
         {
@@ -489,6 +529,8 @@ namespace Signum.Web.Operations
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public string confirmMessage;
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public string controllerUrl; 
+        public string controllerUrl;
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public bool? isContextual;
     }
 }

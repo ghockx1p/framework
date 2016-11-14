@@ -11,6 +11,7 @@ namespace Signum.Test
 {
     public static class Assert2
     {
+        //for MSTest
         public static void Throws<E>(Action action)
             where E : Exception
         {

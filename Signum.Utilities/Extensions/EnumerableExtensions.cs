@@ -74,7 +74,6 @@ namespace Signum.Utilities
         [MethodExpander(typeof(UniqueExExpander))]
         public static T SingleEx<T>(this IQueryable<T> query, Expression<Func<T, bool>> predicate)
         {
-
             return query.Where(predicate).SingleEx();
         }
 
@@ -604,7 +603,7 @@ namespace Signum.Utilities
             foreach (var item in collection)
             {
                 for (int i = 0; i < members.Count; i++)
-                    result[i, j] = members[i].Getter(item).Try(a => a.ToString()) ?? "";
+                    result[i, j] = members[i].Getter(item)?.ToString() ?? "";
                 j++;
             }
 
@@ -622,7 +621,7 @@ namespace Signum.Utilities
             foreach (DataRow row in table.Rows)
             {
                 for (int i = 0; i < table.Columns.Count; i++)
-                    result[i, j] = row[i].Try(a => a.ToString()) ?? "";
+                    result[i, j] = row[i]?.ToString() ?? "";
                 j++;
             }
 

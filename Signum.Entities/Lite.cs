@@ -50,7 +50,7 @@ namespace Signum.Entities
 
         }
 
-        [Serializable, DebuggerTypeProxy(typeof(FlattenHierarchyProxy))]
+        [Serializable]
         public sealed class LiteImp<T> : LiteImp, Lite<T>, ISerializable
             where T : Entity
         {
@@ -63,11 +63,7 @@ namespace Signum.Entities
             {
             }
 
-            public LiteImp(PrimaryKey id, string toStr) : this(id, toStr, ModifiedState.Clean)
-            {
-            }
-
-            public LiteImp(PrimaryKey id, string toStr, ModifiedState modified)
+            public LiteImp(PrimaryKey id, string toStr)
             {
                 if (typeof(T).IsAbstract)
                     throw new InvalidOperationException(typeof(T).Name + " is abstract");
@@ -78,7 +74,7 @@ namespace Signum.Entities
 
                 this.id = id;
                 this.toStr = toStr;
-                this.Modified = modified;
+                this.Modified = ModifiedState.Clean;
             }
 
             public LiteImp(T entity, string toStr)
@@ -157,7 +153,7 @@ namespace Signum.Entities
                 if (id == null)
                     throw new InvalidOperationException("Removing entity not allowed in new Lite");
 
-                this.toStr = this.UntypedEntityOrNull.TryToString();
+                this.toStr = this.UntypedEntityOrNull?.ToString();
                 this.entityOrNull = null;
             }
 
@@ -286,9 +282,6 @@ namespace Signum.Entities
         static GenericInvoker<Func<PrimaryKey, string, Lite<Entity>>> giNewLite =
             new GenericInvoker<Func<PrimaryKey, string, Lite<Entity>>>((id, str) => new LiteImp<Entity>(id, str));
 
-        static GenericInvoker<Func<PrimaryKey, string, ModifiedState, Lite<Entity>>> giNewLiteModified =
-            new GenericInvoker<Func<PrimaryKey, string, ModifiedState, Lite<Entity>>>((id, str, state) => new LiteImp<Entity>(id, str, state));
-
         static GenericInvoker<Func<Entity, string, Lite<Entity>>> giNewLiteFat =
             new GenericInvoker<Func<Entity, string, Lite<Entity>>>((entity, str) => new LiteImp<Entity>(entity, str));
 
@@ -318,6 +311,7 @@ namespace Signum.Entities
 
         public static Lite<T> Parse<T>(string liteKey) where T : class, IEntity
         {
+
             return (Lite<T>)Lite.Parse(liteKey);
         }
 
@@ -363,18 +357,10 @@ namespace Signum.Entities
             return giNewLite.GetInvoker(type)(id, toStr);
         }
 
-        public static Lite<Entity> Create(Type type, PrimaryKey id, string toStr, ModifiedState state)
-        {
-            return giNewLiteModified.GetInvoker(type)(id, toStr, state);
-        }
-
         public static Lite<T> ToLite<T>(this T entity)
           where T : class, IEntity
         {
-            if (entity == null)
-                return null;
-
-            if (entity.IsNew)
+            if (entity.IdOrNull==null)
                 throw new InvalidOperationException("ToLite is not allowed for new entities, use ToLiteFat instead");
 
             return (Lite<T>)giNewLite.GetInvoker(entity.GetType())(entity.Id, entity.ToString());
@@ -383,9 +369,6 @@ namespace Signum.Entities
         public static Lite<T> ToLite<T>(this T entity, string toStr)
             where T : class, IEntity
         {
-            if (entity == null)
-                return null;
-
             if (entity.IsNew)
                 throw new InvalidOperationException("ToLite is not allowed for new entities, use ToLiteFat instead");
 
@@ -395,18 +378,12 @@ namespace Signum.Entities
         public static Lite<T> ToLiteFat<T>(this T entity)
          where T : class, IEntity
         {
-            if (entity == null)
-                return null;
-
             return (Lite<T>)giNewLiteFat.GetInvoker(entity.GetType())((Entity)(IEntity)entity, entity.ToString());
         }
 
         public static Lite<T> ToLiteFat<T>(this T entity, string toStr)
           where T : class, IEntity
         {
-            if (entity == null)
-                return null;
-
             return (Lite<T>)giNewLiteFat.GetInvoker(entity.GetType())((Entity)(IEntity)entity, toStr ?? entity.ToString());
         }
 
@@ -531,21 +508,16 @@ namespace Signum.Entities
             return new LiteImp<T>(id, toStr);
         }
 
-        public static Lite<T> Create<T>(PrimaryKey id, string toStr, ModifiedState modified) where T : Entity
-        {
-            return new LiteImp<T>(id, toStr, modified);
-        }
-
         static ConcurrentDictionary<Type, ConstructorInfo> ciLiteConstructor = new ConcurrentDictionary<Type, ConstructorInfo>();
 
         public static ConstructorInfo LiteConstructor(Type type)
         {
-            return ciLiteConstructor.GetOrAdd(type, t => typeof(LiteImp<>).MakeGenericType(t).GetConstructor(new[] { typeof(PrimaryKey), typeof(string), typeof(ModifiedState) }));
+            return ciLiteConstructor.GetOrAdd(type, t => typeof(LiteImp<>).MakeGenericType(t).GetConstructor(new[] { typeof(PrimaryKey), typeof(string) }));
         }
 
-        public static NewExpression NewExpression(Type type, Expression id, Expression toString, Expression modified)
+        public static NewExpression NewExpression(Type type, Expression id, Expression toString)
         {
-            return Expression.New(Lite.LiteConstructor(type), id.UnNullify(), toString, modified);
+            return Expression.New(Lite.LiteConstructor(type), id.UnNullify(), toString);
         }
     }
 

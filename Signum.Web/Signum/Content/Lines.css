@@ -6,9 +6,32 @@ input[type=radio]
     height: 16px;
 }
 
+label input[type=checkbox],
+label input[type=radio] 
+{
+    margin:0;
+    vertical-align: middle;
+}
+
 input[type=checkbox].form-control
 {
     margin-top: 9px;
+}
+
+p.form-control
+{
+    background-color: #f6f6f6;
+    margin: 0px;
+}
+
+p.form-control.readonly-textarea
+{
+    height: initial !important;
+}
+
+.numeric 
+{
+    text-align:right;
 }
 
 label > input[type=checkbox]
@@ -184,6 +207,10 @@ ul.sf-strip-vertical>li>.form-control
     vertical-align: middle;
 }
 
+label.sf-checkbox-element {
+    display: block;
+}
+
 /*Tabs*/
 ul.nav-tabs
 {
@@ -241,7 +268,8 @@ ul.nav-tabs
     padding: 0px 3px;
 }
 
-.form-xs .form-control:not(textarea)
+.form-xs .form-control:not(textarea),
+.form-xs .form-control-static
 {
     height: 20px;
 }
@@ -299,7 +327,8 @@ ul.nav-tabs
     padding: 3px 6px;
 }
 
-.form-sm .form-control:not(textarea)
+.form-sm .form-control:not(textarea),
+.form-sm .form-control-static
 {
     height: 26px;
 }
@@ -350,7 +379,6 @@ ul.nav-tabs
 }
 
 /*form-inline*/
-
 .form-horizontal .form-inline .form-group
 {
     margin-right: 0px;
@@ -382,7 +410,8 @@ ul.nav-tabs
     margin-right: 0;
 }
 
-.form-vertical .form-control
+.form-vertical .form-control,
+.form-vertical .form-control-static
 {
     display: block;
     /*width: initial;*/

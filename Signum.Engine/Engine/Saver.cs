@@ -35,7 +35,7 @@ namespace Signum.Engine
                     ModifiableEntity me = m as ModifiableEntity;
 
                     if (me != null)
-                        me.SetErrors(null);
+                        me.SetTemporalErrors(null);
 
                     m.PreSaving(ref graphModified);
 
@@ -44,9 +44,9 @@ namespace Signum.Engine
                     if (ident != null)
                         schema.OnPreSaving(ident, ref graphModified);
                 });
-
-                HashSet<Entity> wasNew = modifiables.OfType<Entity>().Where(a=>a.IsNew).ToHashSet();
-                HashSet<Entity> wasSelfModified = modifiables.OfType<Entity>().Where(a => a.Modified == ModifiedState.SelfModified).ToHashSet();
+                
+                HashSet<Entity> wasNew = modifiables.OfType<Entity>().Where(a=>a.IsNew).ToHashSet(ReferenceEqualityComparer<Entity>.Default);
+                HashSet<Entity> wasSelfModified = modifiables.OfType<Entity>().Where(a => a.Modified == ModifiedState.SelfModified).ToHashSet(ReferenceEqualityComparer<Entity>.Default);
 
                 log.Switch("Integrity");
 
@@ -157,6 +157,11 @@ namespace Signum.Engine
             public override int GetHashCode()
             {
                 return Type.GetHashCode() ^ (IsNew ? 1 : 0);
+            }
+
+            public override string ToString()
+            {
+                return $"{Type} IsNew={IsNew}";
             }
         }
     }
